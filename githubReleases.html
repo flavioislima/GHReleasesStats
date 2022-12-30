@@ -1,0 +1,355 @@
+<html>
+
+  <head>
+    <title>GitHub Release Stats</title>
+
+    <!-- Load Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.1.2/dist/axios.min.js"></script>
+    <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
+    <style>
+      /* Add some padding and a border to the page */
+      body {
+        padding: 20px;
+        border: 1px solid lightgray;
+        font-family: 'Roboto', sans-serif;
+      }
+
+      /* Style the page header */
+      h1 {
+        margin: 0;
+        font-size: 2em;
+        font-weight: bold;
+        text-align: center;
+      }
+
+      /* Style the chart containers */
+      #platformDownloadsChartContainer,
+      #percentageDownloadsChartContainer {
+        margin: 20px 0;
+      }
+
+      /* Style the chart titles */
+      h2 {
+        margin: 0;
+        font-size: 1.5em;
+        font-weight: bold;
+        text-align: center;
+      }
+
+
+      /* Style the links as rounded buttons */
+      a {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 20px 10px;
+        font-size: 1em;
+        font-weight: bold;
+        border-radius: 20px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      /* Add a hover effect to the links */
+      a:hover {
+        background-color: #0069d9;
+      }
+
+      /* Style the tables */
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      td,
+      th {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+      }
+
+      tr:nth-child(even) {
+        background-color: #dddddd;
+      }
+    </style>
+
+  </head>
+
+  <body>
+    <h1>Heroic Games Launcher GitHub Release Stats</h1>
+    <div id="totalDownloads">
+      <h2>Total number of downloads: <span id="totalDownloadsCount"></span></h2>
+    </div>
+    <!-- Chart container for the number of downloads per platform -->
+    <div id="platformDownloadsChartContainer">
+      <h2>Total number of downloads per platform</h2>
+      <canvas id="platformDownloadsChart"></canvas>
+    </div>
+
+    <!-- Chart container for the percentage of downloads per platform -->
+    <div id="percentageDownloadsChartContainer">
+      <h2>Percentage of downloads per platform</h2>
+      <canvas id="percentageDownloadsChart"></canvas>
+    </div>
+
+    <!-- Top 5 most downloaded releases table -->
+    <!-- Top 5 most downloaded releases table -->
+    <table id="topReleasesTable">
+      <caption>Top 10 Most Downloaded Releases</caption>
+      <thead>
+        <tr>
+          <th>Release</th>
+          <th>Date</th>
+          <th>Downloads</th>
+        </tr>
+      </thead>
+    </table>
+
+    <!-- Top 5 packages table -->
+    <table id="topPackagesTable">
+      <caption>Top Most Downloaded Packages</caption>
+      <thead>
+        <tr>
+          <th>Package Extension</th>
+          <th>Downloads</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Table rows will be added here by the JavaScript code -->
+      </tbody>
+    </table>
+
+
+    <!-- Load the getReleaseInfo function -->
+    <script>
+      async function getReleaseInfo(repoOwner, repoName) {
+        const apiBaseUrl = "https://api.github.com";
+        const releasesUrl = `/repos/${repoOwner}/${repoName}/releases`;
+        let releases = [];
+
+        // Make a request to the GitHub API to get the list of releases
+        try {
+
+          // Check if the release info is already in the cache
+          const cachedResponse = localStorage.getItem(`${repoOwner}/${repoName}`);
+          if (cachedResponse) {
+            // Check if the cache has expired
+            const cacheExpiration = localStorage.getItem(`${repoOwner}/${repoName}_expiration`);
+            if (cacheExpiration && Date.now() < cacheExpiration) {
+              // Return the cached response
+              releases = JSON.parse(cachedResponse);
+            } else {
+              // Remove the expired cache
+              localStorage.removeItem(`${repoOwner}/${repoName}`);
+              localStorage.removeItem(`${repoOwner}/${repoName}_expiration`);
+              const searchParams = new URLSearchParams();
+              searchParams.set('per_page', '100');
+
+              const response = await fetch(apiBaseUrl + releasesUrl + '?' + searchParams.toString());
+              releases = await response.json();
+            }
+
+          } else {
+            const response = await axios.get(apiBaseUrl + releasesUrl, {
+              params: {
+                per_page: 100
+              }
+            });
+            releases = response.data;
+          }
+
+
+          // Cache the response in the browser
+          localStorage.setItem(`${repoOwner}/${repoName}`, JSON.stringify(releases));
+          localStorage.setItem(`${repoOwner}/${repoName}_expiration`, Date.now() + 12 * 60 * 60 * 1000); // 12 hours in milliseconds
+
+          // Initialize variables for the output object
+          let totalDownloads = 417000;
+          let windowsDownloads = 0;
+          let linuxDownloads = 417000;
+          let macDownloads = 0;
+
+          // Initialize variables for the top releases and packages tables
+          let topReleases = [];
+          let topPackages = [
+            { name: "exe", downloads: 0 },
+            { name: "dmg", downloads: 0 },
+            { name: "deb", downloads: 0 },
+            { name: "AppImage", downloads: 0 },
+            { name: "rpm", downloads: 0 },
+            { name: "xz", downloads: 0 },
+            { name: "pacman", downloads: 0 },
+          ];
+
+          // Iterate over the releases and count the downloads for each platform
+          for (const release of releases) {
+            // Add the release to the top releases list
+            topReleases.push({ name: release.tag_name, downloads: 0, date: release.published_at, });
+            for (const asset of release.assets) {
+              // Skip files with the .yml extension
+              if (asset.name.endsWith(".yml")) {
+                continue;
+              }
+
+              totalDownloads += asset.download_count;
+              topReleases[topReleases.length - 1].downloads += asset.download_count
+              console.log(asset.name)
+
+              if (asset.name.endsWith(".exe")) {
+                windowsDownloads += asset.download_count;
+                topPackages.filter((pkg) => pkg.name === "exe")[0].downloads += asset.download_count;
+              } else if (
+                asset.name.endsWith(".deb") ||
+                asset.name.endsWith(".pacman") ||
+                asset.name.endsWith(".rpm") ||
+                asset.name.endsWith(".tar.xz") ||
+                asset.name.endsWith(".AppImage")
+              ) {
+                linuxDownloads += asset.download_count;
+                // get extension name frin asset.name
+                const split = asset.name.split(".");
+                const extension = split[split.length - 1];
+                topPackages.filter((pkg) => pkg.name === extension)[0].downloads += asset.download_count;
+              } else if (asset.name.endsWith(".dmg")) {
+                macDownloads += asset.download_count;
+                topPackages.filter((pkg) => pkg.name === "dmg")[0].downloads += asset.download_count;
+              }
+            }
+          }
+
+
+
+          // Sort the top releases and packages lists by descending downloads
+          topReleases.sort((a, b) => b.downloads - a.downloads);
+          topPackages.sort((a, b) => b.downloads - a.downloads);
+
+          // Keep only the top 5 releases and packages
+          topReleases = topReleases.slice(0, 10);
+          topPackages = topPackages.slice(0, 8);
+
+
+          // Calculate the percentage of downloads for each platform
+          const windowsPercent = Math.round((windowsDownloads / totalDownloads) * 100);
+          const linuxPercent = Math.round((linuxDownloads / totalDownloads) * 100);
+          const macPercent = Math.round((macDownloads / totalDownloads) * 100);
+
+          // Return the output object
+          return {
+            totalDownloads,
+            windowsDownloads,
+            linuxDownloads,
+            macDownloads,
+            windowsPercent,
+            linuxPercent,
+            macPercent,
+            topReleases,
+            topPackages,
+          };
+        } catch (error) {
+          alert("Error: " + error.message);
+
+        }
+      }
+    </script>
+
+    <!-- Create the charts -->
+    <script>
+      // Get the release info from the GitHub API
+      getReleaseInfo("Heroic-Games-Launcher", "HeroicGamesLauncher")
+        .then(releaseInfo => {
+          // Create the platform downloads chart
+          const platformDownloadsCtx = document.getElementById("platformDownloadsChart").getContext("2d");
+          const platformDownloadsChart = new Chart(platformDownloadsCtx, {
+            type: "bar",
+            title: "Downloads",
+            data: {
+              labels: ["Windows", "Linux", "macOS"],
+              datasets: [
+                {
+                  label: "Downloads",
+                  data: [releaseInfo.windowsDownloads, releaseInfo.linuxDownloads, releaseInfo.macDownloads],
+                  backgroundColor: ["#4287f5", "#39bbb0", "#f5a623"]
+                }
+              ]
+            },
+            options: {
+              scales: {
+                yAxes: [{
+                  ticks: {
+                    beginAtZero: true
+                  }
+                }]
+              }
+            }
+          });
+
+          // Create the percentage of downloads chart
+          const percentageDownloadsCtx = document.getElementById("percentageDownloadsChart").getContext("2d");
+          const percentageDownloadsChart = new Chart(percentageDownloadsCtx, {
+            type: "pie",
+            data: {
+              labels: ["Windows", "Linux", "macOS"],
+              datasets: [
+                {
+                  label: "Percentage of Downloads",
+                  data: [releaseInfo.windowsPercent, releaseInfo.linuxPercent, releaseInfo.macPercent],
+                  backgroundColor: ["#4287f5", "#39bbb0", "#f5a623"]
+                }
+              ],
+              options: {
+                title: {
+                  display: true,
+                  text: "Percentage of Downloads"
+                },
+              }
+            }
+          });
+
+        });
+    </script>
+
+    <script>
+      // Get the release info from the GitHub API
+      getReleaseInfo("Heroic-Games-Launcher", "HeroicGamesLauncher")
+        .then(releaseInfo => {
+          // Populate the top releases table
+          const topReleasesTable = document.getElementById("topReleasesTable");
+          const totalDownlods = document.getElementById("totalDownloadsCount");
+          totalDownlods.innerHTML = releaseInfo.totalDownloads;
+
+          for (const release of releaseInfo.topReleases) {
+            const row = topReleasesTable.insertRow(-1);
+            const releaseCell = row.insertCell(-1);
+            const dateCell = row.insertCell(-1);
+            const downloadsCell = row.insertCell(-1);
+            releaseCell.innerHTML = release.name;
+
+            const date = new Date(release.date).toLocaleString();
+
+            dateCell.innerHTML = date;
+            downloadsCell.innerHTML = release.downloads;
+          }
+
+          // Populate the top packages table
+          const topPackagesTable = document.getElementById("topPackagesTable");
+          for (const package of releaseInfo.topPackages) {
+            const row = topPackagesTable.insertRow(-1);
+            const packageCell = row.insertCell(-1);
+            const downloadsCell = row.insertCell(-1);
+            packageCell.innerHTML = package.name;
+            downloadsCell.innerHTML = package.downloads;
+          }
+        });
+    </script>
+
+    <!-- Links to the repository and website -->
+    <p>
+      <a href="https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher">View the repository</a> |
+      <a href="https://heroicgameslauncher.com">Visit the website</a>
+    </p>
+  </body>
+
+</html>
