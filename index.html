@@ -167,9 +167,10 @@
           localStorage.setItem(`${repoOwner}/${repoName}_expiration`, Date.now() + 12 * 60 * 60 * 1000); // 12 hours in milliseconds
 
           // Initialize variables for the output object
-          let totalDownloads = 417000;
+          // Hardcoded Flathub since I cannot access their API
+          let totalDownloads = 602000;
           let windowsDownloads = 0;
-          let linuxDownloads = 417000;
+          let linuxDownloads = 602000;
           let macDownloads = 0;
 
           // Initialize variables for the top releases and packages tables
